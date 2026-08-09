@@ -19,17 +19,17 @@ def find_repo_root(start_dir: str) -> Path:
 
     # In all OS root folder parent is root itself...
     while current.parent != current:
-        if (current / ".rag").is_dir():
+        if (current / ".pygit").is_dir():
             return current
 
         current = current.parent
 
-    # .rag may exist in root folder but that's dangerous so we will put a check in init to ensure this never happens
-    raise RepositoryError("Not a R.A.G. repository: .rag missing")
+    # .pygit may exist in root folder but that's dangerous so we will put a check in init to ensure this never happens
+    raise RepositoryError("Not a Py-Git repository: .pygit missing")
 
 
 def read_object(repo_root: Path, sha: str) -> bytes:
-    obj_path = repo_root / ".rag" / "objects" / sha[:2] / sha[2:]
+    obj_path = repo_root / ".pygit" / "objects" / sha[:2] / sha[2:]
     if not obj_path.is_file():
         raise RepositoryError(f"Object not found: {sha}")
 
@@ -52,7 +52,7 @@ def write_object(repo_root: Path, obj_type: str, content: bytes) -> str:
     hash_obj.update(content)
     sha = hash_obj.hexdigest()
 
-    obj_path = repo_root / ".rag" / "objects" / sha[:2] / sha[2:]
+    obj_path = repo_root / ".pygit" / "objects" / sha[:2] / sha[2:]
 
     # If 2 sub-folder contain the same file they will reach this point we have to ensure they don't get stored twice
     if not obj_path.exists():
@@ -69,8 +69,8 @@ def write_object(repo_root: Path, obj_type: str, content: bytes) -> str:
 
 
 def read_index(repo_root: Path) -> dict[str, list]:
-    # We are certain that index_path exists since we created a empty one upon rag init
-    index_path = repo_root / ".rag" / "index"
+    # We are certain that index_path exists since we created an empty one upon pygit init
+    index_path = repo_root / ".pygit" / "index"
 
     try:
         # Schema: { path/to/file: [mode, sha, mtime, size] }
@@ -85,7 +85,7 @@ def read_index(repo_root: Path) -> dict[str, list]:
 
 def write_index(repo_root: Path, entries: dict[str, list]) -> None:
     # We have modified the index file but need to write it in users directory too
-    index_path = repo_root / ".rag" / "index"
+    index_path = repo_root / ".pygit" / "index"
 
     # We use a temporary lock file to write atomically. If the system crashes mid-write,
     # the original index file won't be corrupted with partial JSON data.
@@ -100,7 +100,7 @@ def write_index(repo_root: Path, entries: dict[str, list]) -> None:
 
 
 def get_head(repo_root: Path) -> str | None:
-    main_branch_file = repo_root / ".rag" / "refs" / "heads" / "main"
+    main_branch_file = repo_root / ".pygit" / "refs" / "heads" / "main"
 
     # Return None for the first commit if the branch file doesn't exist yet
     if not main_branch_file.is_file():
@@ -110,9 +110,9 @@ def get_head(repo_root: Path) -> str | None:
 
 
 def load_gitignore(repo_root: Path) -> list[str]:
-    ignore_path = repo_root / ".ragignore"
+    ignore_path = repo_root / ".pygitignore"
 
-    # It's not compulsory to have a .ragignore
+    # It's not compulsory to have a .pygitignore
     if not ignore_path.is_file():
         return []
 
@@ -122,7 +122,7 @@ def load_gitignore(repo_root: Path) -> list[str]:
     for line in ignore_path.read_text(encoding="utf-8").splitlines():
         line = line.strip()
 
-        # In case user has a empty line b/w content we have ignore it and in .ragignore `#` are for comments
+        # In case user has a empty line b/w content we have ignore it and in .pygitignore `#` are for comments
         # line[0] == "#" works but this is more easy to read
         if line and not line.startswith("#"):
             rules.append(line)
@@ -132,20 +132,20 @@ def load_gitignore(repo_root: Path) -> list[str]:
 def is_ignored(rel_path: str, is_dir: bool, ignore_rules: list[str]) -> bool:
     parts = rel_path.split("/")
 
-    # No need to track .rag directory internals
-    if ".rag" in parts:
+    # No need to track .pygit directory internals
+    if ".pygit" in parts:
         return True
 
     for rule in ignore_rules:
         pattern = rule
 
-        # In .ragignore ending with / -> ignore all folder with that name
+        # In .pygitignore ending with / -> ignore all folder with that name
         is_dir_only = False
         if rule.endswith("/"):
             is_dir_only = True
             pattern = rule[:-1]
 
-        # In .ragignore starting with / -> ignore folder in folder where .ragignore is present
+        # In .pygitignore starting with / -> ignore folder in folder where .pygitignore is present
         if rule.startswith("/"):
             pattern = rule[1:]
 
@@ -238,30 +238,30 @@ def cmd_init(args: list[str]) -> None:
     if len(args) > 1:
         target = Path(args[1]).resolve()
 
-    # We should avoid making .rag/ in root folder
+    # We should avoid making .pygit/ in root folder
     if target.parent == target:
         raise RepositoryError("Not a good idea to initialize in root folder")
 
-    # We will make .rag, .rag/objects, .rag/refs/heads also we will warn the user if .rag already exists
-    rag_dir = target / ".rag"
-    if rag_dir.exists():
-        raise RepositoryError("Project already in tracking, if you want to reset then delete .rag and retry")
+    # We will make .pygit, .pygit/objects, .pygit/refs/heads also we will warn the user if .pygit already exists
+    pygit_dir = target / ".pygit"
+    if pygit_dir.exists():
+        raise RepositoryError("Project already in tracking, if you want to reset then delete .pygit and retry")
 
-    (rag_dir / "objects").mkdir(parents=True, exist_ok=True)
-    (rag_dir / "refs" / "heads").mkdir(parents=True, exist_ok=True)
+    (pygit_dir / "objects").mkdir(parents=True, exist_ok=True)
+    (pygit_dir / "refs" / "heads").mkdir(parents=True, exist_ok=True)
 
     # We will create the HEAD, index file too
-    head_file = rag_dir / "HEAD"
-    index_file = rag_dir / "index"
+    head_file = pygit_dir / "HEAD"
+    index_file = pygit_dir / "index"
 
     head_file.write_text("ref: refs/heads/main\n")
     index_file.write_text("{}\n")
 
-    print(f"Initialized empty R.A.G. repository in {rag_dir}")
+    print(f"Initialized empty Py-Git repository in {pygit_dir}")
 
 
 def process_single_file(repo_root: Path, file_path: Path, index: dict, ignore_rules: list[str]) -> None:
-    # Don't need /home/user/ only the relative path from .rag folder
+    # Don't need /home/user/ only the relative path from .pygit folder
     rel_path = file_path.relative_to(repo_root).as_posix()
 
     # Check if the file is in .gitignore
@@ -302,7 +302,7 @@ def cmd_add(repo_root: Path, args: list[str]) -> None:
     for target in args[1:]:
         target_path = Path(target).resolve()
 
-        # We need to ensure this file is in the project root where rag is initialized
+        # We need to ensure this file is in the project root where pygit is initialized
         if not target_path.is_relative_to(repo_root):
             raise RepositoryError(f"This {target_path} is not in this repo_root")
 
@@ -416,9 +416,9 @@ def cmd_commit(repo_root: Path, args: list[str]) -> None:
     parent_commit_sha = get_head(repo_root)
 
     # Build the commit object from user-defined variables
-    author_name = os.getenv("RAG_AUTHOR_NAME", "Dev")
+    author_name = os.getenv("PYGIT_AUTHOR_NAME", "Dev")
     timestamp = int(time.time())
-    author_info = f"{author_name} <dev@rag.local> {timestamp} +0000"
+    author_info = f"{author_name} <dev@pygit.local> {timestamp} +0000"
 
     commit_lines = []
     commit_lines.append(f"tree {root_tree_sha}")
@@ -436,8 +436,9 @@ def cmd_commit(repo_root: Path, args: list[str]) -> None:
     commit_content = "\n".join(commit_lines)
     commit_sha = write_object(repo_root, "commit", commit_content.encode())
 
-    ref_file = repo_root / ".rag" / "HEAD"
-    ref_file.write_text(f"{commit_sha}\n")
+    main_branch_file = repo_root / ".pygit" / "refs" / "heads" / "main"
+    main_branch_file.parent.mkdir(parents=True, exist_ok=True)
+    main_branch_file.write_text(f"{commit_sha}\n")
 
     # Standard output msg for user
     display_name = "HEAD"
@@ -540,10 +541,10 @@ def main(argv=None):
         args = argv
     else:
         args = sys.argv[1:]
-    # argv -> [python3, rag.py, init] so we ignore the first one
+    # argv -> [python3, pygit.py, init] so we ignore the first one
 
     if not args:
-        print("usage: rag <command> [<args>]")
+        print("usage: pygit <command> [<args>]")
         return 0
 
     command = args[0]

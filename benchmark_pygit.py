@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-# HOW TO EXECUTE: sudo python3 benchmark.py
+# HOW TO EXECUTE: sudo python3 benchmark_pygit.py
 import contextlib
 import io
 import json
@@ -20,9 +20,9 @@ if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
 try:
-    from rag import main as rag_main
+    from pygit import main as pygit_main
 except ImportError:
-    print("CRITICAL ERROR: Could not import 'rag.py'. Ensure it is in the same directory.", file=sys.stderr)
+    print("CRITICAL ERROR: Could not import 'pygit.py'. Ensure it is in the same directory.", file=sys.stderr)
     sys.exit(1)
 
 
@@ -62,7 +62,7 @@ def run_cold_disk_command(cmd_args: list[str]) -> tuple[float, float]:
 
     buf = io.StringIO()
     with contextlib.redirect_stdout(buf):
-        exit_code = rag_main(cmd_args)
+        exit_code = pygit_main(cmd_args)
 
     elapsed = time.perf_counter() - t0
     _current, peak = tracemalloc.get_traced_memory()
@@ -76,7 +76,7 @@ def run_cold_disk_command(cmd_args: list[str]) -> tuple[float, float]:
 
 def main():
     print("=========================================================")
-    print("  R.A.G. OPTIMIZED COLD-DISK HARDWARE I/O BENCHMARK      ")
+    print("  PY-GIT OPTIMIZED COLD-DISK HARDWARE I/O BENCHMARK     ")
     print("=========================================================")
 
     print("[*] Validating OS cache drop capabilities...")
@@ -87,7 +87,7 @@ def main():
     benchmark_summary = []
 
     for count in test_tiers:
-        temp_dir = Path(tempfile.mkdtemp(prefix="rag_cold_bench_"))
+        temp_dir = Path(tempfile.mkdtemp(prefix="pygit_cold_bench_"))
         original_cwd = os.getcwd()
 
         try:
@@ -123,3 +123,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
